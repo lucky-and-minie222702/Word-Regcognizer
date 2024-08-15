@@ -1,0 +1,124 @@
+import numpy as np
+import random as rd
+from const import const, init
+from model import neuralNetwork
+import sys
+import os
+from func import  printProgress
+import random as rd
+import cv2
+import time
+from imutils.contours import sort_contours
+import imutils
+
+trainData = []
+testData = []
+init()
+
+if "init" in sys.argv:
+    print("Initializing...")
+    os.mkdir(const["savePath"])
+    os.mkdir(const["trainPath"])
+    print("DONE")
+    exit()
+
+if "load" in sys.argv:
+    trainData = open(const["trainFile"], "r").readlines()
+    testData = open(const["testFile"], "r").readlines()
+<<<<<<< HEAD
+=======
+    
+if not ("load" in sys.argv):
+    print("*** WARNING: You have not loaded the model yet! (add \"load\" to your command to load the model)")
+    time.sleep(1)
+>>>>>>> 781e51b (better api for both data set)
+    
+model = neuralNetwork(
+    const["learningRateFile"],
+    const["wihFile"],
+    const["whoFile"],
+    const["biasWihFile"],
+    const["biasWhoFile"],
+)
+
+if "restart" in sys.argv:
+    prompt = input("Restart destroys every current training data in default path!\nAre you sure you want to restart (yes=yes, no=everything else)?: ")
+    if prompt == "yes":
+        model.save()
+    else:
+        print("Restart cancelled!")
+    exit()
+
+print("Loading link weights...")
+model.loadData()
+
+trainSize = len(trainData)
+testSize = len(testData)
+
+if "info" in sys.argv:
+    print("-"*10+"INFOMARTION"+"-"*10)
+    print("Train size:", trainSize, " - Test size: ", testSize)
+    exit()
+
+# 0 1 2 ... 7 8 9 a b c ... x y z 
+
+def predict():
+    img = cv2.imread(sys.argv[2])
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, 30, 150)
+    cnts = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+    cnts = sort_contours(cnts, method="left-to-right")[0]
+    chars = []
+    for c in cnts:
+        (x, y, w, h) = cv2.boundingRect(c)
+        roi = gray[y:y + h, x:x + w]
+        thresh = cv2.threshold(roi, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+        (tH, tW) = thresh.shape
+        dX = int(max(0, 28 - tW) / 2.0)
+        dY = int(max(0, 28 - tH) / 2.0)
+        
+        padded = cv2.copyMakeBorder(thresh, top=dY, bottom=dY,
+            left=dX, right=dX, borderType=cv2.BORDER_CONSTANT,
+            value=(0, 0, 0))
+        padded = cv2.resize(padded, (28, 28))
+        padded = (padded.astype("float32") / 255.0) * 0.99 + 0.01
+        chars.append(padded)
+
+    img = np.ndarray.flatten(np.array(chars[0]))
+
+    ans = model.query(img)
+    if "full" in sys.argv:
+        for i, val in enumerate(ans):
+            if i > 9:
+                i = chr(ord('a') + i - 10) + " - " + str(i)
+            print("Label:", i, f"- {val[0]*100:.2f}%")
+    ans = np.argmax(ans)
+    if ans > 9:
+        ans = chr(ord('a') + ans - 10)
+    print("Final answer:", ans)
+
+if "train" in sys.argv:
+    print("Prefering using \"trainmode\" for more efficient training with adaptive learning rate")
+    limit = int(sys.argv[2])
+    start = int(sys.argv[3])
+    model.train(limit, start, trainData)
+elif "test" in sys.argv:
+    limit = int(sys.argv[2])
+    savePath = const["savePath"] + const["saveFile"] if sys.argv[3] == "default" else sys.argv[3]
+    model.test(limit, testData, savePath)
+elif "predict" in sys.argv:
+    predict() 
+<<<<<<< HEAD
+=======
+elif "trainmode" in sys.argv:
+    prompt = input("Enter \"yes\" to continue: ")
+    if prompt!= "yes":
+        print("Training cancelled!")
+        exit()
+    cur = int(sys.argv[2])
+    epoch = int(sys.argv[3])
+    rest = int(sys.argv[4])
+    model.trainmode(cur, epoch, trainData, testData, rest)
+>>>>>>> 781e51b (better api for both data set)
