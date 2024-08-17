@@ -12,7 +12,9 @@ from imutils.contours import sort_contours
 import imutils
 
 trainData = []
+trainLabel = []
 testData = []
+testLabel = []
 init()
 
 if "init" in sys.argv:
@@ -23,15 +25,33 @@ if "init" in sys.argv:
     exit()
 
 if "load" in sys.argv:
-    trainData = open(const["trainFile"], "r").readlines()
-    testData = open(const["testFile"], "r").readlines()
-<<<<<<< HEAD
-=======
+    if "trainData" in sys.argv or "fullData" in sys.argv:
+        print("Processing train data...")
+        rawData = open(const["trainFile"], "r").readlines()
+        for record in rawData:
+            allVal = record.split(",")
+            inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
+            tar = np.zeros(const["onodes"]) + 0.01
+            tar[int(allVal[0])] = 0.99
+            trainData.append(inp)
+            trainLabel.append(tar)
+    
+    if "testData" in sys.argv or "fullData" in sys.argv:
+        print("Processing test data...")
+        rawData = open(const["testFile"], "r").readlines()
+        for record in rawData:
+            allVal = record.split(",")
+            inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
+            tar = np.zeros(const["onodes"]) + 0.01
+            tar[int(allVal[0])] = 0.99
+            testData.append(inp)
+            testLabel.append(tar)
+    
+    rawData = []
     
 if not ("load" in sys.argv):
     print("*** WARNING: You have not loaded the model yet! (add \"load\" to your command to load the model)")
     time.sleep(1)
->>>>>>> 781e51b (better api for both data set)
     
 model = neuralNetwork(
     const["learningRateFile"],
@@ -100,25 +120,13 @@ def predict():
     print("Final answer:", ans)
 
 if "train" in sys.argv:
-    print("Prefering using \"trainmode\" for more efficient training with adaptive learning rate")
-    limit = int(sys.argv[2])
-    start = int(sys.argv[3])
-    model.train(limit, start, trainData)
+    epoch = int(sys.argv[2])
+    cur = int(sys.argv[3])
+    rest = float(sys.argv[4])
+    model.train(trainData, trainLabel, epoch, cur, rest, True, testData, testLabel)
 elif "test" in sys.argv:
     limit = int(sys.argv[2])
     savePath = const["savePath"] + const["saveFile"] if sys.argv[3] == "default" else sys.argv[3]
-    model.test(limit, testData, savePath)
+    model.test(testData, testLabel, limit, savePath)
 elif "predict" in sys.argv:
     predict() 
-<<<<<<< HEAD
-=======
-elif "trainmode" in sys.argv:
-    prompt = input("Enter \"yes\" to continue: ")
-    if prompt!= "yes":
-        print("Training cancelled!")
-        exit()
-    cur = int(sys.argv[2])
-    epoch = int(sys.argv[3])
-    rest = int(sys.argv[4])
-    model.trainmode(cur, epoch, trainData, testData, rest)
->>>>>>> 781e51b (better api for both data set)

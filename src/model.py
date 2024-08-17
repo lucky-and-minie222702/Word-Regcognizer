@@ -26,7 +26,6 @@ class neuralNetwork:
         self.inodes = const["inodes"]
         self.onodes = const["onodes"]
         self.hnodes = int(2/3 * self.inodes) + self.onodes
-        self.deltaLr = const["deltaLr"]
         self.lrFile = learningRateFile
         self.sep = self.inodes
         # file paths
@@ -41,7 +40,7 @@ class neuralNetwork:
             self.who = np.random.normal(0.0, 1.0, (self.onodes, self.hnodes))
             self.wihBias = np.zeros((self.hnodes, 1))
             self.whoBias = np.zeros((self.onodes, 1))
-            self.lr = 0.0001
+            self.lr = 0.001
         else:
             print("Loading link weights...")
             self.loadData()
@@ -98,28 +97,35 @@ class neuralNetwork:
     
     # User interface methods
     
-    def train(self, limit, start, trainData, show=True):
+    def train(self, input, label, epoch, cur, rest, frequentlyTest=True, testInput=[], testLabel=[]):
         count = 0
-        for record in trainData[start::]:
-            if count == limit:
-                break
-            count += 1
-            
-            allVal = record.split(",")
-            inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
-            tar = np.zeros(const["onodes"]) + 0.01
-            tar[int(allVal[0])] = 0.99
-
-            self.singleTrain(inp, tar)
-            
-            percent = int(count / limit * 100)
-            if show:
-                printProgress(percent, count, limit)
-        if show:
+        for i in range(epoch):
+            print("*** EPOCH:", i)
+            count = 0
+            for j in range(cur, cur+const["lrStep"]):
+                count +=1
+                
+                cycle = np.floor(1 + count / const["lrStep"])
+                x = np.abs(count / const["lrStep"] - 2*cycle + 1)
+                self.lr = const["lrMin"] + (const["lrMax"] - const["lrMin"])*max(0.0, 1-x)
+                
+                self.singleTrain(input[j], label[j])
+                percent = int(count / const["lrStep"] * 100)
+                printProgress(percent, count, const["lrStep"])
             print()
+            
+            self.save()
+            cur += const["lrStep"]
+            print("Current:", cur)
+            
+            if frequentlyTest:
+                self.test(testInput, testLabel, 100, show=False)
+            
+            print("Resing...", end="\r")
+            time.sleep(rest)
         self.save()
 
-    def test(self, limit, testData, savePath=const["savePath"] + const["saveFile"], show=True):
+    def test(self, input, label, limit, savePath=const["savePath"] + const["saveFile"], show=True):
         correct = 0
         count = 0
         fullCorrect = [0 for _ in range(const["onodes"])]
@@ -127,19 +133,17 @@ class neuralNetwork:
         
         f = open(savePath, "w")
 
-        randTest = rd.choices(testData, k=limit)
-        for record in randTest:
+        randTest = rd.choices(range(len(input)), k=limit)
+        for i in randTest:
             count += 1
-            allVal = record.split(',')
-            correctLabel = int(allVal[0])
-            inputs = (np.asarray(allVal[1:], dtype = np.float32) / 255.0 * 0.99) + 0.01
-            outputs = self.query(inputs)
-            label = np.argmax(outputs)
+            output= self.query(input[i])
+            actualLabel = np.argmax(output)
+            correctLabel = np.argmax(label[i])
             fullTotal[correctLabel] += 1
-            if (label == correctLabel):
+            if (actualLabel == correctLabel):
                 fullCorrect[correctLabel] += 1
                 correct += 1
-            print("CORRECT" if label == correctLabel else "WRONG  ", "Test cases:", count, "/", limit, "expected:", correctLabel, "output:", label,file=f)
+            print("CORRECT" if actualLabel == correctLabel else "WRONG  ", "Test cases:", count, "/", limit, "expected:", correctLabel, "output:", actualLabel, file=f)
             percent = int(count / limit * 100)
             if show:
                 printProgress(percent, count, limit)
@@ -163,24 +167,9 @@ class neuralNetwork:
                     print(f"Label {i}: {fullCorrect[i]} / {fullTotal[i]} - {percent:.2f}%")
                 else:
                     print(f"Label {i}: doesn't appear")
-            print("DONE")
+            print("-"*10+"FINAL"+"-"*10)
             print("Correct:", correct)
             print("Wrong:", limit - correct)
         f.close()
         print("Accuracy:", f"{np.trunc((correct / limit) * 10000) / 100}%")
         
-    def trainmode(self, cur, epoch, trainData, testData, rest=0):
-        # total 40 epochs for training
-        for i in range(1, epoch+1):
-            print("*** SECTION:", i)
-            self.train(const["lrStep"], cur, trainData)
-            self.test(100, testData, show=False)
-            cur += const["lrStep"]
-            print("Current:", cur)
-            
-            if i%const["lrIter"] == 0:
-                self.lr *= const["deltaLr"]
-                
-            self.save()
-            print("Resting...", end="\r")
-            time.sleep(rest)
