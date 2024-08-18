@@ -46,20 +46,21 @@ if "install" in sys.argv:
         testLabel = np.append(testLabel, tar)
     
     rawData = []
-    np.save("trainInput.npy", trainInput)
-    np.save("trainLabel.npy", trainLabel)
-    np.save("testInput.npy", testInput)
-    np.save("testLabel.npy", testLabel)
+    np.save("traindata/trainInput.npy", trainInput)
+    np.save("traindata/trainLabel.npy", trainLabel)
+    np.save("traindata/testInput.npy", testInput)
+    np.save("traindata/testLabel.npy", testLabel)
+    exit()
     
 if "load" in sys.argv:
-    trainInput = np.fromfile("trainInput.npy")
-    trainLabel = np.fromfile("trainLabel.npy")
-    testInput = np.fromfile("testInput.npy")
-    testLabel = np.fromfile("testLabel.npy")
+    trainInput = np.fromfile("traindata/trainInput.npy")
+    trainLabel = np.fromfile("traindata/trainLabel.npy")
+    testInput = np.fromfile("traindata/testInput.npy")
+    testLabel = np.fromfile("traindata/testLabel.npy")
     
 if not ("load" in sys.argv):
     print("*** WARNING: You have not loaded the model yet! (add \"load\" to your command to load the model)")
-    time.sleep(1)
+    time.sleep(3)
     
 model = neuralNetwork(
     const["learningRateFile"],
