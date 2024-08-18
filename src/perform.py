@@ -11,10 +11,10 @@ import time
 from imutils.contours import sort_contours
 import imutils
 
-trainData = []
-trainLabel = []
-testData = []
-testLabel = []
+trainInput = np.array([])
+trainLabel = np.array([])
+testInput = np.array([])
+testLabel = np.array([])
 init()
 
 if "init" in sys.argv:
@@ -24,30 +24,38 @@ if "init" in sys.argv:
     print("DONE")
     exit()
 
-if "load" in sys.argv:
-    if "trainData" in sys.argv or "fullData" in sys.argv:
-        print("Processing train data...")
-        rawData = open(const["trainFile"], "r").readlines()
-        for record in rawData:
-            allVal = record.split(",")
-            inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
-            tar = np.zeros(const["onodes"]) + 0.01
-            tar[int(allVal[0])] = 0.99
-            trainData.append(inp)
-            trainLabel.append(tar)
-    
-    if "testData" in sys.argv or "fullData" in sys.argv:
-        print("Processing test data...")
-        rawData = open(const["testFile"], "r").readlines()
-        for record in rawData:
-            allVal = record.split(",")
-            inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
-            tar = np.zeros(const["onodes"]) + 0.01
-            tar[int(allVal[0])] = 0.99
-            testData.append(inp)
-            testLabel.append(tar)
+if "install" in sys.argv:
+    print("Processing train data...")
+    rawData = open(const["trainFile"], "r").readlines()
+    for record in rawData:
+        allVal = record.split(",")
+        inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
+        tar = np.zeros(const["onodes"]) + 0.01
+        tar[int(allVal[0])] = 0.99
+        trainInput = np.append(trainInput, inp)
+        trainLabel = np.append(trainLabel, tar)
+
+    print("Processing test data...")
+    rawData = open(const["testFile"], "r").readlines()
+    for record in rawData:
+        allVal = record.split(",")
+        inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
+        tar = np.zeros(const["onodes"]) + 0.01
+        tar[int(allVal[0])] = 0.99
+        testInput = np.append(testInput, inp)
+        testLabel = np.append(testLabel, tar)
     
     rawData = []
+    np.save("trainInput.npy", trainInput)
+    np.save("trainLabel.npy", trainLabel)
+    np.save("testInput.npy", testInput)
+    np.save("testLabel.npy", testLabel)
+    
+if "load" in sys.argv:
+    trainInput = np.fromfile("trainInput.npy")
+    trainLabel = np.fromfile("trainLabel.npy")
+    testInput = np.fromfile("testInput.npy")
+    testLabel = np.fromfile("testLabel.npy")
     
 if not ("load" in sys.argv):
     print("*** WARNING: You have not loaded the model yet! (add \"load\" to your command to load the model)")
@@ -72,8 +80,8 @@ if "restart" in sys.argv:
 print("Loading link weights...")
 model.loadData()
 
-trainSize = len(trainData)
-testSize = len(testData)
+trainSize = len(trainInput)
+testSize = len(testInput)
 
 if "info" in sys.argv:
     print("-"*10+"INFOMARTION"+"-"*10)
@@ -123,10 +131,10 @@ if "train" in sys.argv:
     epoch = int(sys.argv[2])
     cur = int(sys.argv[3])
     rest = float(sys.argv[4])
-    model.train(trainData, trainLabel, epoch, cur, rest, True, testData, testLabel)
+    model.train(trainInput, trainLabel, epoch, cur, rest, True, testInput, testLabel)
 elif "test" in sys.argv:
     limit = int(sys.argv[2])
     savePath = const["savePath"] + const["saveFile"] if sys.argv[3] == "default" else sys.argv[3]
-    model.test(testData, testLabel, limit, savePath)
+    model.test(testInput, testLabel, limit, savePath)
 elif "predict" in sys.argv:
     predict() 
