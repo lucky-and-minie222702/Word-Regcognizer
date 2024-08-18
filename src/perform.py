@@ -1,6 +1,6 @@
 import numpy as np
 import random as rd
-from const import const, init
+from const import const
 from model import neuralNetwork
 import sys
 import os
@@ -11,56 +11,72 @@ import time
 from imutils.contours import sort_contours
 import imutils
 
-trainInput = np.array([])
-trainLabel = np.array([])
-testInput = np.array([])
-testLabel = np.array([])
-init()
+trainInput = []
+trainLabel = []
+testInput = []
+testLabel = []
 
 if "init" in sys.argv:
     print("Initializing...")
-    os.mkdir(const["savePath"])
-    os.mkdir(const["trainPath"])
+    os.mkdir("test_log/")
+    os.mkdir("traindata/")
     print("DONE")
     exit()
 
 if "install" in sys.argv:
+    prompt = input("Type \"yes\" to continue: ")
+    if prompt != "yes":
+        print("Instalation cancelled")
+        exit()
     print("Processing train data...")
-    rawData = open(const["trainFile"], "r").readlines()
+    rawData = open("traindata/trainData.csv", "r").readlines()
+    count = 0
+    limit = len(rawData)
     for record in rawData:
+        count += 1
         allVal = record.split(",")
         inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
         tar = np.zeros(const["onodes"]) + 0.01
         tar[int(allVal[0])] = 0.99
-        trainInput = np.append(trainInput, inp)
-        trainLabel = np.append(trainLabel, tar)
+        
+        trainInput.append(inp)
+        trainLabel.append(tar)
+        
+        percent = int(count / limit * 100)
+        printProgress(percent, count, limit)
 
+    print()
     print("Processing test data...")
-    rawData = open(const["testFile"], "r").readlines()
+    rawData = open("traindata/testData.csv", "r").readlines()
+    count = 0
+    limit = len(rawData)
     for record in rawData:
+        count += 1
         allVal = record.split(",")
         inp = (np.asarray(allVal[1::], dtype = np.float32) / 255 * 0.99) + 0.01
         tar = np.zeros(const["onodes"]) + 0.01
         tar[int(allVal[0])] = 0.99
-        testInput = np.append(testInput, inp)
-        testLabel = np.append(testLabel, tar)
+        
+        testInput.append(inp)
+        testLabel.append(tar)
+        
+        percent = int(count / limit * 100)
+        printProgress(percent, count, limit)
     
     rawData = []
-    np.save("traindata/trainInput.npy", trainInput)
-    np.save("traindata/trainLabel.npy", trainLabel)
-    np.save("traindata/testInput.npy", testInput)
-    np.save("traindata/testLabel.npy", testLabel)
+    print("\nSaving data...")
+    np.save("traindata/trainInput", trainInput)
+    np.save("traindata/trainLabel", trainLabel)
+    np.save("traindata/testInput", testInput)
+    np.save("traindata/testLabel", testLabel)
+    print("Installation done!")
     exit()
     
 if "load" in sys.argv:
-    trainInput = np.fromfile("traindata/trainInput.npy")
-    trainLabel = np.fromfile("traindata/trainLabel.npy")
-    testInput = np.fromfile("traindata/testInput.npy")
-    testLabel = np.fromfile("traindata/testLabel.npy")
-    
-if not ("load" in sys.argv):
-    print("*** WARNING: You have not loaded the model yet! (add \"load\" to your command to load the model)")
-    time.sleep(3)
+    trainInput = np.load("traindata/trainInput.npy")
+    trainLabel = np.load("traindata/trainLabel.npy")
+    testInput = np.load("traindata/testInput.npy")
+    testLabel = np.load("traindata/testLabel.npy")
     
 model = neuralNetwork(
     const["learningRateFile"],
@@ -68,6 +84,9 @@ model = neuralNetwork(
     const["whoFile"],
     const["biasWihFile"],
     const["biasWhoFile"],
+    const["lrMax"],
+    const["lrMin"],
+    const["lrStep"],
 )
 
 if "restart" in sys.argv:
@@ -77,6 +96,10 @@ if "restart" in sys.argv:
     else:
         print("Restart cancelled!")
     exit()
+
+if not ("load" in sys.argv):
+    print("*** WARNING: You have not loaded the model yet! (add \"load\" to your command to load the model)")
+    time.sleep(3)
 
 print("Loading link weights...")
 model.loadData()
@@ -129,13 +152,17 @@ def predict():
     print("Final answer:", ans)
 
 if "train" in sys.argv:
+    prompt = input("Type \"yes\" to continue: ")
+    if prompt != "yes":
+        print("Training cancelled")
+        exit()
     epoch = int(sys.argv[2])
     cur = int(sys.argv[3])
     rest = float(sys.argv[4])
     model.train(trainInput, trainLabel, epoch, cur, rest, True, testInput, testLabel)
 elif "test" in sys.argv:
     limit = int(sys.argv[2])
-    savePath = const["savePath"] + const["saveFile"] if sys.argv[3] == "default" else sys.argv[3]
-    model.test(testInput, testLabel, limit, savePath)
+    model.test(testInput, testLabel, limit)
+    print("Full result saved to \"test_log/log.txt\"")
 elif "predict" in sys.argv:
     predict() 

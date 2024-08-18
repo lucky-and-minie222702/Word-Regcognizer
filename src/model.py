@@ -4,6 +4,7 @@ from func import  printProgress
 from const import const
 import random as rd
 import time
+from skimage.measure import block_reduce
 
 class neuralNetwork:
     def save(self):
@@ -12,7 +13,7 @@ class neuralNetwork:
         np.savetxt(self.wihBiasFile, self.wihBias)
         np.savetxt(self.whoBiasFile, self.whoBias)
         f = open(self.lrFile, 'w')
-        print(self.lr, file=f)
+        print(self.lr, self.lrMax, self.lrMin, sep="\n", file=f)
         f.close()
         
     def loadData(self):
@@ -20,14 +21,20 @@ class neuralNetwork:
         self.who = np.loadtxt(self.whoFile)
         self.wihBias = np.loadtxt(self.wihBiasFile)
         self.whoBias = np.loadtxt(self.whoBiasFile)
-        self.lr = float(open(self.lrFile, 'r').readline())
+        lr = open(self.lrFile, 'r').readlines()
+        self.lr = float(lr[0])
+        self.lrMax = float(lr[1])
+        self.lrMin = float(lr[2])
         
-    def __init__(self, learningRateFile, wihFile, whoFile, wihBiasFile, whoBiasFile, init=True):
+    def __init__(self, learningRateFile, wihFile, whoFile, wihBiasFile, whoBiasFile, lrMax, lrMin, lrStep, init=True):
         self.inodes = const["inodes"]
         self.onodes = const["onodes"]
-        self.hnodes = int(2/3 * self.inodes) + self.onodes
+        self.hnodes = const["hnodes"]
         self.lrFile = learningRateFile
         self.sep = self.inodes
+        self.lrMax = lrMax
+        self.lrMin = lrMin
+        self.lrStep = lrStep
         # file paths
         self.wihFile = wihFile
         self.whoFile = whoFile
@@ -36,11 +43,11 @@ class neuralNetwork:
         # create link weights
         if init:
             print("Initializing link weights")
-            self.wih = np.random.normal(0.0, 1.0, (self.hnodes, self.inodes))
+            self.wih = np.random.normal(0.0, 1.0, (self.hnodes, self.inodes // 4))
             self.who = np.random.normal(0.0, 1.0, (self.onodes, self.hnodes))
             self.wihBias = np.zeros((self.hnodes, 1))
             self.whoBias = np.zeros((self.onodes, 1))
-            self.lr = 0.001
+            self.lr = lrMax
         else:
             print("Loading link weights...")
             self.loadData()
@@ -50,13 +57,18 @@ class neuralNetwork:
         
     
     def singleTrain(self, inputLists, targetLists, autoSave = False):
-        inp = np.array(inputLists, ndmin=2).T
+        inp = inputLists.reshape(28, 28)
+        # pooling layers
+        inp = block_reduce(inp, (2, 2), np.max)
+        inp = inp.flatten()
+        
+        inp = np.array(inp, ndmin=2).T
         tar = np.array(targetLists, ndmin=2).T
         
         self.wihBias = self.wihBias.reshape((self.hnodes, 1))
         hinp = np.dot(self.wih, inp) + self.wihBias
         hout = self.acFunc(hinp)
-        
+
         self.whoBias = self.whoBias.reshape((self.onodes, 1))
         finalInp = np.dot(self.who, hout) + self.whoBias
         finalOut = self.classifyFunc(finalInp)
@@ -86,8 +98,14 @@ class neuralNetwork:
             self.save()
     
     def query(self, inputLists):
-        inp = np.array(inputLists, ndmin=2).T
+        inp = inputLists.reshape(28, 28)
+        # pooling layers
+        inp = block_reduce(inp, (2, 2), np.max)
+        inp = inp.flatten()
+        
+        inp = np.array(inp, ndmin=2).T
         self.wihBias = self.wihBias.reshape((self.hnodes, 1))
+        # pooling layers
         hinp = np.dot(self.wih, inp) + self.wihBias
         hout = self.acFunc(hinp)
         self.whoBias = self.whoBias.reshape((self.onodes, 1))
@@ -95,37 +113,9 @@ class neuralNetwork:
         finalOut = self.classifyFunc(finalInp)
         return finalOut
     
-    # User interface methods
+    # User interface method
     
-    def train(self, input, label, epoch, cur, rest, frequentlyTest=True, testInput=[], testLabel=[]):
-        count = 0
-        for i in range(epoch):
-            print("*** EPOCH:", i)
-            count = 0
-            for j in range(cur, cur+const["lrStep"]):
-                count +=1
-                
-                cycle = np.floor(1 + count / const["lrStep"])
-                x = np.abs(count / const["lrStep"] - 2*cycle + 1)
-                self.lr = const["lrMin"] + (const["lrMax"] - const["lrMin"])*max(0.0, 1-x)
-                
-                self.singleTrain(input[j], label[j])
-                percent = int(count / const["lrStep"] * 100)
-                printProgress(percent, count, const["lrStep"])
-            print()
-            
-            self.save()
-            cur += const["lrStep"]
-            print("Current:", cur)
-            
-            if frequentlyTest:
-                self.test(testInput, testLabel, 100, show=False)
-            
-            print("Resing...", end="\r")
-            time.sleep(rest)
-        self.save()
-
-    def test(self, input, label, limit, savePath=const["savePath"] + const["saveFile"], show=True):
+    def test(self, input, label, limit, savePath="test_log/log.txt", show=True):
         correct = 0
         count = 0
         fullCorrect = [0 for _ in range(const["onodes"])]
@@ -147,7 +137,7 @@ class neuralNetwork:
             percent = int(count / limit * 100)
             if show:
                 printProgress(percent, count, limit)
-                
+
         print("-"*10+"SUMMARY"+"-"*10, file=f)
         for i in range(len(fullCorrect)):
             percent = 0
@@ -173,3 +163,31 @@ class neuralNetwork:
         f.close()
         print("Accuracy:", f"{np.trunc((correct / limit) * 10000) / 100}%")
         
+    def train(self, input, label, epoch, cur, rest, frequentlyTest=True, testInput=[], testLabel=[]):
+        count = 0
+        for i in range(epoch):
+            print("*** EPOCH:", i+1)
+            count = 0
+            for j in range(cur, cur+self.lrStep):
+                count +=1
+                
+                cycle = np.floor(1 + count / self.lrStep)
+                x = np.abs(count / self.lrStep - 2*cycle + 1)
+                self.lr = self.lrMin + (self.lrMax - self.lrMin)*max(0.0, 1-x)
+                
+                self.singleTrain(input[j], label[j])
+                percent = int(count / self.lrStep * 100)
+                printProgress(percent, count, self.lrStep)
+            print()
+            self.lrMax *= 0.85
+            self.lrMin *= 0.85
+            self.save()
+            cur += self.lrStep
+            print("Current:", cur)
+            
+            if frequentlyTest:
+                self.test(testInput, testLabel, 100, show=False)
+            
+            print("Resting...", end="\r")
+            time.sleep(rest)
+        self.save()
